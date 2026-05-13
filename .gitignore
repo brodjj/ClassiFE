@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+logs/
+.env
+
+# Claude Code project files
+CLAUDE.md
+classife-brief.md
+.claude/

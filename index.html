@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ClassiFE</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #0f0f0f;
+            color: #d0d0d0;
+            font-family: 'Courier New', Courier, monospace;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── Sidebar ── */
+        #sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: #141414;
+            border-right: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            gap: 14px;
+            overflow-y: auto;
+        }
+
+        #sidebar h1 {
+            font-size: 13px;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 3px;
+            border-bottom: 1px solid #222;
+            padding-bottom: 12px;
+        }
+
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .config-group label {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .config-group input[type="text"],
+        .config-group textarea {
+            background: #0a0a0a;
+            border: 1px solid #2a2a2a;
+            color: #c8c8c8;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 6px 8px;
+            width: 100%;
+            outline: none;
+        }
+
+        .config-group input[type="text"]:focus,
+        .config-group textarea:focus {
+            border-color: #444;
+        }
+
+        .model-name {
+            font-size: 10px;
+            color: #444;
+            padding-left: 1px;
+            min-height: 14px;
+        }
+
+        .config-group textarea {
+            resize: vertical;
+            min-height: 90px;
+            line-height: 1.4;
+        }
+
+        /* toggle */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .toggle {
+            position: relative;
+            width: 38px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .toggle input { opacity: 0; width: 0; height: 0; }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #2a2a2a;
+        }
+
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background: #555;
+        }
+
+        .toggle input:checked + .toggle-slider { background: #1e3d1e; }
+        .toggle input:checked + .toggle-slider:before {
+            transform: translateX(18px);
+            background: #4caf50;
+        }
+
+        /* sidebar buttons */
+        .sidebar-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: auto;
+            padding-top: 8px;
+            border-top: 1px solid #222;
+        }
+
+        .btn {
+            background: transparent;
+            border: 1px solid #2a2a2a;
+            color: #777;
+            font-family: inherit;
+            font-size: 10px;
+            padding: 7px 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            width: 100%;
+            text-align: left;
+        }
+
+        .btn:hover { border-color: #444; color: #bbb; }
+
+        /* ── Main chat area ── */
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+        }
+
+        .placeholder {
+            font-size: 11px;
+            color: #3a3a3a;
+            text-align: center;
+            margin-top: 40px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* ── Message groups ── */
+        .message-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .message-group.user  { align-items: flex-end; }
+        .message-group.assistant { align-items: flex-start; }
+
+        .bubble {
+            max-width: 68%;
+            padding: 10px 14px;
+            font-size: 13px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .message-group.user .bubble {
+            background: #141e14;
+            border: 1px solid #223322;
+            color: #b8d4b8;
+        }
+
+        .message-group.assistant .bubble {
+            background: #141414;
+            border: 1px solid #222;
+            color: #d0d0d0;
+        }
+
+        .bubble.blocked {
+            background: #1e1010;
+            border-color: #4a1a1a;
+            color: #c07070;
+        }
+
+        .bubble.error {
+            background: #1e1010;
+            border-color: #4a1a1a;
+            color: #e07070;
+        }
+
+        .gen-speed {
+            font-size: 10px;
+            color: #444;
+            padding-left: 2px;
+        }
+
+        /* ── Verdict badges ── */
+        .verdict-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding-left: 2px;
+        }
+
+        .badge {
+            font-size: 9px;
+            padding: 2px 5px;
+            border: 1px solid;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: bold;
+        }
+
+        .badge.safe      { color: #4caf50; border-color: #1e3d1e; background: #0a130a; }
+        .badge.violation { color: #e05050; border-color: #4a1a1a; background: #130a0a; }
+        .badge.bypassed  { color: #444;    border-color: #2a2a2a; background: #0f0f0f; }
+
+        /* ── Input area ── */
+        #input-area {
+            border-top: 1px solid #1e1e1e;
+            padding: 14px 28px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        #user-input {
+            flex: 1;
+            background: #141414;
+            border: 1px solid #2a2a2a;
+            color: #d0d0d0;
+            font-family: inherit;
+            font-size: 13px;
+            padding: 9px 12px;
+            resize: none;
+            outline: none;
+            min-height: 40px;
+            max-height: 160px;
+            line-height: 1.4;
+        }
+
+        #user-input:focus { border-color: #3a3a3a; }
+
+        #send-btn {
+            background: #141e14;
+            border: 1px solid #223322;
+            color: #4caf50;
+            font-family: inherit;
+            font-size: 11px;
+            padding: 0 18px;
+            height: 40px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #send-btn:hover  { background: #1a2a1a; border-color: #2d4a2d; }
+        #send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; }
+    </style>
+</head>
+<body>
+
+<aside id="sidebar">
+    <h1>ClassiFE</h1>
+
+    <div class="config-group">
+        <label>Guard Model Endpoint</label>
+        <input type="text" id="guard-endpoint" value="http://localhost:8081">
+        <div class="model-name" id="guard-model-name"></div>
+    </div>
+
+    <div class="config-group">
+        <label>Task Model Endpoint</label>
+        <input type="text" id="task-endpoint" value="http://localhost:8080">
+        <div class="model-name" id="task-model-name"></div>
+    </div>
+
+    <div class="config-group">
+        <div class="toggle-row">
+            <label>Guard Enabled</label>
+            <label class="toggle">
+                <input type="checkbox" id="guard-toggle" checked>
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="config-group">
+        <label>System Prompt</label>
+        <textarea id="system-prompt">You are a helpful assistant. Use British English spelling. Be direct and concise - no preamble, no filler phrases, no sycophantic openers. Get straight to the answer. When uncertain, say so plainly.</textarea>
+    </div>
+
+    <div class="sidebar-actions">
+        <button class="btn" id="download-log-btn">&#8659; Download Session Log</button>
+        <button class="btn" id="clear-chat-btn">&#x2715; Clear Chat</button>
+    </div>
+</aside>
+
+<main id="main">
+    <div id="messages">
+        <div class="placeholder">No messages yet</div>
+    </div>
+    <div id="input-area">
+        <textarea id="user-input" placeholder="Type a message… (Shift+Enter for newline)" rows="1"></textarea>
+        <button id="send-btn">Send</button>
+    </div>
+</main>
+
+<script>
+    const CATEGORY_LABELS = {
+        pii_and_ip:             'PII & IP',
+        illicit_activities:     'Illicit',
+        hate_and_abuse:         'Hate & Abuse',
+        sexual_content:         'Sexual',
+        prompt_security:        'Prompt Sec',
+        violence_and_self_harm: 'Violence',
+        misinformation:         'Misinfo',
+    };
+    const CATEGORIES = Object.keys(CATEGORY_LABELS);
+
+    let conversationHistory = [];
+    let sessionLog = [];
+
+    const guardModelName = document.getElementById('guard-model-name');
+    const taskModelName  = document.getElementById('task-model-name');
+
+    async function fetchModelName(endpoint, labelEl) {
+        try {
+            const res = await fetch(`${endpoint.trim()}/v1/models`, { signal: AbortSignal.timeout(3000) });
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            labelEl.textContent = data.data?.[0]?.id ?? '';
+        } catch {
+            labelEl.textContent = '';
+        }
+    }
+
+    function debounce(fn, ms) {
+        let t;
+        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    const messagesEl   = document.getElementById('messages');
+    const userInput    = document.getElementById('user-input');
+    const sendBtn      = document.getElementById('send-btn');
+    const guardToggle  = document.getElementById('guard-toggle');
+    const guardEP      = document.getElementById('guard-endpoint');
+    const taskEP       = document.getElementById('task-endpoint');
+    const systemPrompt = document.getElementById('system-prompt');
+
+    // fetch model names on load and on endpoint change
+    fetchModelName(guardEP.value, guardModelName);
+    fetchModelName(taskEP.value,  taskModelName);
+    guardEP.addEventListener('input', debounce(() => fetchModelName(guardEP.value, guardModelName), 600));
+    taskEP.addEventListener( 'input', debounce(() => fetchModelName(taskEP.value,  taskModelName),  600));
+
+    // auto-resize input
+    userInput.addEventListener('input', () => {
+        userInput.style.height = 'auto';
+        userInput.style.height = Math.min(userInput.scrollHeight, 160) + 'px';
+    });
+
+    userInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    document.getElementById('clear-chat-btn').addEventListener('click', () => {
+        conversationHistory = [];
+        sessionLog = [];
+        messagesEl.innerHTML = '<div class="placeholder">Chat cleared</div>';
+    });
+
+    document.getElementById('download-log-btn').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(sessionLog, null, 2)], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    function clearPlaceholder() {
+        messagesEl.querySelector('.placeholder')?.remove();
+    }
+
+    function scrollToBottom() {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function renderVerdictBadges(verdict, guardBypassed) {
+        const row = document.createElement('div');
+        row.className = 'verdict-row';
+
+        if (guardBypassed) {
+            const b = document.createElement('span');
+            b.className = 'badge bypassed';
+            b.textContent = 'Guard bypassed';
+            row.appendChild(b);
+            return row;
+        }
+
+        for (const cat of CATEGORIES) {
+            const b = document.createElement('span');
+            b.className = `badge ${verdict?.[cat] === 'violation' ? 'violation' : 'safe'}`;
+            b.textContent = CATEGORY_LABELS[cat];
+            row.appendChild(b);
+        }
+        return row;
+    }
+
+    function appendUserBubble(text) {
+        clearPlaceholder();
+        const group  = document.createElement('div');
+        group.className = 'message-group user';
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = text;
+        group.appendChild(bubble);
+        messagesEl.appendChild(group);
+        scrollToBottom();
+    }
+
+    function appendAssistantMessage({ text, verdict, guardBypassed, blocked, tokensPerSec, error }) {
+        const group  = document.createElement('div');
+        group.className = 'message-group assistant';
+
+        const bubble = document.createElement('div');
+        bubble.className = error ? 'bubble error' : blocked ? 'bubble blocked' : 'bubble';
+        bubble.textContent = text;
+        group.appendChild(bubble);
+
+        if (!error) {
+            if (tokensPerSec != null) {
+                const speed = document.createElement('div');
+                speed.className = 'gen-speed';
+                speed.textContent = `${tokensPerSec.toFixed(1)} tok/s`;
+                group.appendChild(speed);
+            }
+            group.appendChild(renderVerdictBadges(verdict, guardBypassed));
+        }
+
+        messagesEl.appendChild(group);
+        scrollToBottom();
+    }
+
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        userInput.value = '';
+        userInput.style.height = 'auto';
+        sendBtn.disabled = true;
+
+        appendUserBubble(text);
+
+        const payload = {
+            message: text,
+            history: conversationHistory,
+            config: {
+                guard_endpoint: guardEP.value.trim(),
+                task_endpoint:  taskEP.value.trim(),
+                guard_enabled:  guardToggle.checked,
+                system_prompt:  systemPrompt.value.trim(),
+            },
+        };
+
+        try {
+            const res = await fetch('/api/chat', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ detail: res.statusText }));
+                appendAssistantMessage({ text: `Error: ${err.detail ?? res.statusText}`, error: true });
+                return;
+            }
+
+            const data = await res.json();
+            const guardBypassed = !guardToggle.checked;
+
+            if (data.blocked) {
+                const cats = Object.entries(data.verdict)
+                    .filter(([, v]) => v === 'violation')
+                    .map(([k]) => CATEGORY_LABELS[k] ?? k)
+                    .join(', ');
+                appendAssistantMessage({
+                    text: `Blocked — ${cats}`,
+                    verdict: data.verdict,
+                    guardBypassed,
+                    blocked: true,
+                });
+            } else {
+                appendAssistantMessage({
+                    text:          data.response,
+                    verdict:       data.verdict,
+                    guardBypassed,
+                    blocked:       false,
+                    tokensPerSec:  data.tokens_per_sec,
+                });
+                conversationHistory.push({ role: 'user',      content: text });
+                conversationHistory.push({ role: 'assistant', content: data.response });
+            }
+
+            sessionLog.push({
+                timestamp:          new Date().toISOString(),
+                user_message:       text,
+                classifier_verdict: data.verdict ?? null,
+                blocked:            data.blocked,
+                task_response:      data.blocked ? null : data.response,
+                tokens_per_second:  data.tokens_per_sec ?? null,
+            });
+
+        } catch (e) {
+            appendAssistantMessage({ text: `Could not reach backend: ${e.message}`, error: true });
+        } finally {
+            sendBtn.disabled = false;
+            userInput.focus();
+        }
+    }
+</script>
+</body>
+</html>
