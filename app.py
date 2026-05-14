@@ -143,18 +143,18 @@ def serve_frontend():
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     verdict = None
+    output_verdict = None
     blocked = False
+    output_blocked = False
     response = None
     tokens_per_sec = None
 
-    # Step 1: run the guard if enabled. A single violation in any category
-    # is enough to block the message — the task model is never contacted.
+    # Step 1: classify user input. A single violation blocks the request.
     if req.config.guard_enabled:
         verdict = classify(req.config.guard_endpoint, req.message)
         blocked = any(v == "violation" for v in verdict.values())
 
-    # Step 2: if not blocked, forward to the task model with the full
-    # conversation history so multi-turn context is preserved.
+    # Step 2: if not blocked, forward to the task model.
     if not blocked:
         messages = []
         if req.config.system_prompt:
@@ -163,20 +163,30 @@ def chat(req: ChatRequest):
         messages.append({"role": "user", "content": req.message})
         response, tokens_per_sec = generate(req.config.task_endpoint, messages)
 
-    # Step 3: log the exchange regardless of outcome.
+    # Step 3: classify the model's response (output-side guard).
+    if req.config.guard_enabled and response is not None:
+        output_verdict = classify(req.config.guard_endpoint, response)
+        output_blocked = any(v == "violation" for v in output_verdict.values())
+
+    # Step 4: log the exchange regardless of outcome.
+    # task_response is always logged for audit purposes even when output is blocked.
     append_log({
         "timestamp": datetime.now().isoformat(),
         "user_message": req.message,
         "classifier_verdict": verdict,
+        "output_verdict": output_verdict,
         "blocked": blocked,
+        "output_blocked": output_blocked,
         "task_response": response,
         "tokens_per_second": tokens_per_sec,
     })
 
     return {
-        "response": response,
+        "response": None if output_blocked else response,
         "verdict": verdict,
+        "output_verdict": output_verdict,
         "blocked": blocked,
+        "output_blocked": output_blocked,
         "tokens_per_sec": tokens_per_sec,
     }
 

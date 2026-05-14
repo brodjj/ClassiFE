@@ -241,6 +241,11 @@
         .badge.violation { color: #e05050; border-color: #4a1a1a; background: #130a0a; }
         .badge.bypassed  { color: #444;    border-color: #2a2a2a; background: #0f0f0f; }
 
+        .verdict-section { display: flex; flex-direction: column; gap: 4px; padding-left: 2px; }
+        .verdict-row-labelled { display: flex; align-items: center; gap: 6px; }
+        .verdict-label { font-size: 9px; color: #3a3a3a; text-transform: uppercase;
+                         letter-spacing: 0.5px; width: 36px; flex-shrink: 0; text-align: right; }
+
         /* ── Input area ── */
         #input-area {
             border-top: 1px solid #1e1e1e;
@@ -421,11 +426,10 @@
         messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    function renderVerdictBadges(verdict, guardBypassed) {
-        const row = document.createElement('div');
-        row.className = 'verdict-row';
-
+    function renderVerdictBadges(verdict, outputVerdict, guardBypassed) {
         if (guardBypassed) {
+            const row = document.createElement('div');
+            row.className = 'verdict-row';
             const b = document.createElement('span');
             b.className = 'badge bypassed';
             b.textContent = 'Guard bypassed';
@@ -433,13 +437,32 @@
             return row;
         }
 
-        for (const cat of CATEGORIES) {
-            const b = document.createElement('span');
-            b.className = `badge ${verdict?.[cat] === 'violation' ? 'violation' : 'safe'}`;
-            b.textContent = CATEGORY_LABELS[cat];
-            row.appendChild(b);
+        function makeRow(label, v) {
+            const labelled = document.createElement('div');
+            labelled.className = 'verdict-row-labelled';
+            const lbl = document.createElement('span');
+            lbl.className = 'verdict-label';
+            lbl.textContent = label;
+            const row = document.createElement('div');
+            row.className = 'verdict-row';
+            for (const cat of CATEGORIES) {
+                const b = document.createElement('span');
+                b.className = `badge ${v?.[cat] === 'violation' ? 'violation' : 'safe'}`;
+                b.textContent = CATEGORY_LABELS[cat];
+                row.appendChild(b);
+            }
+            labelled.appendChild(lbl);
+            labelled.appendChild(row);
+            return labelled;
         }
-        return row;
+
+        const section = document.createElement('div');
+        section.className = 'verdict-section';
+        section.appendChild(makeRow('Input', verdict));
+        if (outputVerdict != null) {
+            section.appendChild(makeRow('Output', outputVerdict));
+        }
+        return section;
     }
 
     function appendUserBubble(text) {
@@ -454,7 +477,7 @@
         scrollToBottom();
     }
 
-    function appendAssistantMessage({ text, verdict, guardBypassed, blocked, tokensPerSec, error }) {
+    function appendAssistantMessage({ text, verdict, outputVerdict, guardBypassed, blocked, tokensPerSec, error }) {
         const group  = document.createElement('div');
         group.className = 'message-group assistant';
 
@@ -470,7 +493,7 @@
                 speed.textContent = `${tokensPerSec.toFixed(1)} tok/s`;
                 group.appendChild(speed);
             }
-            group.appendChild(renderVerdictBadges(verdict, guardBypassed));
+            group.appendChild(renderVerdictBadges(verdict, outputVerdict ?? null, guardBypassed));
         }
 
         messagesEl.appendChild(group);
@@ -520,15 +543,28 @@
                     .map(([k]) => CATEGORY_LABELS[k] ?? k)
                     .join(', ');
                 appendAssistantMessage({
-                    text: `Blocked — ${cats}`,
+                    text: `Prompt blocked — ${cats}`,
                     verdict: data.verdict,
                     guardBypassed,
                     blocked: true,
+                });
+            } else if (data.output_blocked) {
+                const cats = Object.entries(data.output_verdict)
+                    .filter(([, v]) => v === 'violation')
+                    .map(([k]) => CATEGORY_LABELS[k] ?? k)
+                    .join(', ');
+                appendAssistantMessage({
+                    text:          `Output blocked — ${cats}`,
+                    verdict:       data.verdict,
+                    outputVerdict: data.output_verdict,
+                    guardBypassed,
+                    blocked:       true,
                 });
             } else {
                 appendAssistantMessage({
                     text:          data.response,
                     verdict:       data.verdict,
+                    outputVerdict: data.output_verdict ?? null,
                     guardBypassed,
                     blocked:       false,
                     tokensPerSec:  data.tokens_per_sec,
@@ -541,8 +577,10 @@
                 timestamp:          new Date().toISOString(),
                 user_message:       text,
                 classifier_verdict: data.verdict ?? null,
+                output_verdict:     data.output_verdict ?? null,
                 blocked:            data.blocked,
-                task_response:      data.blocked ? null : data.response,
+                output_blocked:     data.output_blocked,
+                task_response:      (data.blocked || data.output_blocked) ? null : data.response,
                 tokens_per_second:  data.tokens_per_sec ?? null,
             });
 
