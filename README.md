@@ -2,7 +2,7 @@
 
 A local developer tool for testing LLM safety classifier models alongside task models. ClassiFE proxies between two llama.cpp server instances — a safety classifier and a general-purpose LLM — via a browser-based chat interface.
 
-Every message is run through the classifier before reaching the task model. The verdict is shown as category badges in the UI so you can observe exactly what the classifier thinks of each message in real time.
+Every message passes through the classifier twice: once on the way in (input guard) and once on the way out (output guard). Both verdicts are shown as labelled category badges in the UI so you can observe classifier behaviour at both stages in real time.
 
 ---
 
@@ -84,7 +84,7 @@ The sidebar in the UI exposes all runtime settings — no restart required:
 
 ## How the Classifier Works
 
-ClassiFE is built around the GA Guard token format. The classifier receives each user message prefixed with `text: ` (required by the model's chat template) and emits one token per safety category:
+ClassiFE is built around the GA Guard token format. The classifier receives text prefixed with `text: ` (required by the model's chat template) and emits one token per safety category:
 
 ```
 <category_violation>  or  <category_not_violation>
@@ -100,7 +100,15 @@ The seven categories checked are:
 - `violence_and_self_harm`
 - `misinformation`
 
-If any category fires as `violation`, the message is blocked and never reaches the task model. The full verdict is always shown as colour-coded badges beneath each response (green = safe, red = violation).
+### Input guard
+
+Every user message is classified before being forwarded to the task model. If any category fires as `violation`, the message is blocked immediately — the task model is never contacted — and the UI shows **Prompt blocked: [categories]**.
+
+### Output guard
+
+If the input guard passes, the task model's response is classified before being shown to the user. This is the second line of defence: it catches unsafe content generated in response to prompts that successfully bypassed the input guard. If a violation is detected, the response is suppressed and the UI shows **Output blocked: [categories]**.
+
+Both verdicts are displayed as labelled **Input** and **Output** badge rows beneath each message (green = safe, red = violation). The output guard only comes into play when a prompt clears the input guard — for most normal usage both rows will be all green.
 
 ---
 
@@ -110,9 +118,11 @@ Each session writes a JSON log to `logs/session-<timestamp>.json`. Logs are also
 
 - `timestamp`
 - `user_message`
-- `classifier_verdict` — per-category breakdown
-- `blocked` — whether the message was blocked
-- `task_response` — model response if not blocked
+- `classifier_verdict` — input guard verdict, per-category breakdown
+- `output_verdict` — output guard verdict, per-category breakdown
+- `blocked` — whether the prompt was blocked by the input guard
+- `output_blocked` — whether the response was blocked by the output guard
+- `task_response` — model response (recorded in the log even when output is blocked)
 - `tokens_per_second` — task model generation speed
 
 The `logs/` directory is excluded from version control.
